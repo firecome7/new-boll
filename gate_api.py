@@ -220,6 +220,52 @@ class GateAPI:
         except Exception:
             return False
 
+    def cancel_price_orders(self, coin: str) -> int:
+        """取消该币种所有旧止损条件单（price_orders）
+        防止重启时重复堆积
+        """
+        import requests, hashlib, hmac, time, urllib.parse
+        keys = load_api_keys()
+        api_key = keys['apiKey']
+        api_secret = keys['secret']
+
+        def _sign(method, path, query=''):
+            t = str(int(time.time()))
+            hashed_body = hashlib.sha512(b'').hexdigest()
+            sign_str = f'{method}\\n/api/v4/{path}\\n{query}\\n{hashed_body}\\n{t}'
+            h = hmac.new(api_secret.encode(), sign_str.encode(), hashlib.sha512).hexdigest()
+            return {
+                'KEY': api_key, 'SIGN': h, 'Timestamp': t,
+                'Content-Type': 'application/json'
+            }
+
+        sym = coin.upper() + '_USDT'
+        try:
+            # 直接用REST API获取所有条件单
+            headers = _sign('GET', 'futures/usdt/price_orders', 'status=open')
+            r = requests.get(
+                'https://api.gateio.ws/api/v4/futures/usdt/price_orders?status=open',
+                headers=headers, timeout=10
+            )
+            orders = r.json()
+            if not isinstance(orders, list):
+                return 0
+            cancelled = 0
+            for o in orders:
+                contract = o.get('initial', {}).get('contract', '')
+                if contract.startswith(sym):
+                    oid = o.get('id')
+                    if oid:
+                        del_headers = _sign('DELETE', f'futures/usdt/price_orders/{oid}')
+                        requests.delete(
+                            f'https://api.gateio.ws/api/v4/futures/usdt/price_orders/{oid}',
+                            headers=del_headers, timeout=10
+                        )
+                        cancelled += 1
+            return cancelled
+        except Exception:
+            return 0
+
     def fetch_open_orders(self, coin: Optional[str] = None) -> list[dict]:
         """未成交订单列表"""
         sym = self.swap_symbol(coin) if coin else None

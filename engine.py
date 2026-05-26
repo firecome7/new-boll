@@ -158,6 +158,10 @@ class TradingEngine:
                 for o in old_orders:
                     if o.get('reduce_only', False):
                         self.api.cancel_order(coin, o['id'])
+                # 清理旧的止损条件单（每次重启都会残留）
+                sl_cleaned = self.api.cancel_price_orders(coin)
+                if sl_cleaned:
+                    logger.info(f"  [{coin}] 清理{sl_cleaned}个旧止损条件单")
                 close_side = 'sell' if cs.position_side == 'long' else 'buy'
                 tp_order = self.api.create_limit_close(coin, close_side, cs.position_size, cs.take_price)
                 if tp_order:
