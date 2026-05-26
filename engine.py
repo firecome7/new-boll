@@ -110,17 +110,23 @@ class TradingEngine:
 
     def _train_all(self, coins: list[str]):
         """训练所有币的偏移量"""
+        import time as _time
         self._trained_offsets = {}
-        for coin in coins:
+        for idx, coin in enumerate(coins):
             try:
                 ohlcv = self.api.fetch_ohlcv(coin, limit=TRAINING_BARS + 50)
                 if len(ohlcv) < TRAINING_BARS + 25:
+                    logger.debug(f"[{coin}] 训练跳过: 仅{len(ohlcv)}根K线")
+                    _time.sleep(0.05)
                     continue
                 off = train_offsets(ohlcv)
                 if off['up_offset'] > 0 or off['low_offset'] > 0:
                     self._trained_offsets[coin] = off
+                if idx % 20 == 0:
+                    logger.info(f"  训练进度: {idx}/{len(coins)} ({len(self._trained_offsets)}个有效)")
+                _time.sleep(0.05)
             except Exception as e:
-                logger.debug(f"[{coin}] 训练失败: {e}")
+                logger.warning(f"[{coin}] 训练失败: {e}")
 
         n = len(self._trained_offsets)
         logger.info(f"训练完成: {n}/{len(coins)}个币有有效偏移量")
