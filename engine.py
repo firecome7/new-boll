@@ -156,62 +156,62 @@ class TradingEngine:
                 except Exception as e:
                     logger.error(f"  [{coin}] ❌ 孤儿仓平仓失败: {e}")
                 continue
-                cs.holding = True
-                cs.position_side = p['side']
-                cs.position_size = p['size']
-                cs.entry_fill_price = p['entry_price']
+            cs.holding = True
+            cs.position_side = p['side']
+            cs.position_size = p['size']
+            cs.entry_fill_price = p['entry_price']
 
-                # ── 校验：仓位不能过大 ──
-                current_notional = float(p.get('notional', 0))
-                if current_notional > FIXED_POSITION_VALUE * 1.5:
-                    current_size = cs.position_size
-                    target_size = int(current_size * (FIXED_POSITION_VALUE / current_notional))
-                    if target_size > 0 and current_size > target_size + 1:
-                        excess = current_size - target_size
-                        close_side = 'sell' if cs.position_side == 'long' else 'buy'
-                        logger.warning(
-                            f"  [{coin}] ⚠️ 仓位过大: 名义${current_notional:.0f} "
-                            f"(应为${FIXED_POSITION_VALUE:.0f}) "
-                            f"共{current_size}张 超量{excess}张"
+            # ── 校验：仓位不能过大 ──
+            current_notional = float(p.get('notional', 0))
+            if current_notional > FIXED_POSITION_VALUE * 1.5:
+                current_size = cs.position_size
+                target_size = int(current_size * (FIXED_POSITION_VALUE / current_notional))
+                if target_size > 0 and current_size > target_size + 1:
+                    excess = current_size - target_size
+                    close_side = 'sell' if cs.position_side == 'long' else 'buy'
+                    logger.warning(
+                        f"  [{coin}] ⚠️ 仓位过大: 名义${current_notional:.0f} "
+                        f"(应为${FIXED_POSITION_VALUE:.0f}) "
+                        f"共{current_size}张 超量{excess}张"
+                    )
+                    try:
+                        self.api.create_market_close(coin, close_side, excess)
+                        cs.position_size = target_size
+                        logger.info(
+                            f"  [{coin}] ✅ 减仓成功: {current_size}→{target_size}张 "
+                            f"(${current_notional:.0f}→${FIXED_POSITION_VALUE:.0f})"
                         )
-                        try:
-                            self.api.create_market_close(coin, close_side, excess)
-                            cs.position_size = target_size
-                            logger.info(
-                                f"  [{coin}] ✅ 减仓成功: {current_size}→{target_size}张 "
-                                f"(${current_notional:.0f}→${FIXED_POSITION_VALUE:.0f})"
-                            )
-                        except Exception as e:
-                            logger.error(f"  [{coin}] ❌ 减仓失败: {e}")
+                    except Exception as e:
+                        logger.error(f"  [{coin}] ❌ 减仓失败: {e}")
 
-                if cs.position_side == 'long':
-                    cs.stop_price = cs.entry_fill_price * (1 - SL_PCT)
-                    cs.take_price = cs.entry_fill_price * (1 + TP_PCT)
-                else:
-                    cs.stop_price = cs.entry_fill_price * (1 + SL_PCT)
-                    cs.take_price = cs.entry_fill_price * (1 - TP_PCT)
-                self.active_coins.add(coin)
+            if cs.position_side == 'long':
+                cs.stop_price = cs.entry_fill_price * (1 - SL_PCT)
+                cs.take_price = cs.entry_fill_price * (1 + TP_PCT)
+            else:
+                cs.stop_price = cs.entry_fill_price * (1 + SL_PCT)
+                cs.take_price = cs.entry_fill_price * (1 - TP_PCT)
+            self.active_coins.add(coin)
 
-                # 取消交易所旧止盈止损单，重下新单（确保配置变更生效）
-                old_orders = self.api.fetch_open_orders(coin)
-                for o in old_orders:
-                    if o.get('reduce_only', False):
-                        self.api.cancel_order(coin, o['id'])
-                # 清理旧的止损条件单（每次重启都会残留）
-                sl_cleaned = self.api.cancel_price_orders(coin)
-                if sl_cleaned:
-                    logger.info(f"  [{coin}] 清理{sl_cleaned}个旧止损条件单")
-                close_side = 'sell' if cs.position_side == 'long' else 'buy'
-                tp_order = self.api.create_limit_close(coin, close_side, cs.position_size, cs.take_price)
-                if tp_order:
-                    cs.take_order_id = tp_order['id']
-                sl_order = self.api.create_stop_loss_close(coin, close_side, cs.position_size, cs.stop_price)
-                if sl_order:
-                    cs.stop_order_id = sl_order['id']
+            # 取消交易所旧止盈止损单，重下新单（确保配置变更生效）
+            old_orders = self.api.fetch_open_orders(coin)
+            for o in old_orders:
+                if o.get('reduce_only', False):
+                    self.api.cancel_order(coin, o['id'])
+            # 清理旧的止损条件单（每次重启都会残留）
+            sl_cleaned = self.api.cancel_price_orders(coin)
+            if sl_cleaned:
+                logger.info(f"  [{coin}] 清理{sl_cleaned}个旧止损条件单")
+            close_side = 'sell' if cs.position_side == 'long' else 'buy'
+            tp_order = self.api.create_limit_close(coin, close_side, cs.position_size, cs.take_price)
+            if tp_order:
+                cs.take_order_id = tp_order['id']
+            sl_order = self.api.create_stop_loss_close(coin, close_side, cs.position_size, cs.stop_price)
+            if sl_order:
+                cs.stop_order_id = sl_order['id']
 
-                logger.info(f"  [{coin}] 恢复持仓 {cs.position_side} "
-                            f"入场${cs.entry_fill_price:.4f} "
-                            f"止盈${cs.take_price:.4f} 止损${cs.stop_price:.4f}")
+            logger.info(f"  [{coin}] 恢复持仓 {cs.position_side} "
+                        f"入场${cs.entry_fill_price:.4f} "
+                        f"止盈${cs.take_price:.4f} 止损${cs.stop_price:.4f}")
 
     def _sync_orders(self):
         """启动时从交易所同步未成交订单"""
