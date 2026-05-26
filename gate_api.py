@@ -190,11 +190,24 @@ class GateAPI:
                                 trigger_price: float) -> Optional[dict]:
         """止损条件单（stop-market）
         价格到trigger_price立即市价平仓
+        如果当前价已过止损位，直接市价平仓
         """
         sym = self.swap_symbol(coin)
         contracts = float(self.ex.amount_to_precision(sym, contracts))
         if contracts <= 0:
             return None
+
+        # 检查当前价是否已经触发止损
+        ticker = self.ex.fetch_ticker(sym)
+        last_price = ticker.get('last', 0)
+        if last_price > 0:
+            # 做多：触发价必须低于市价；做空：触发价必须高于市价
+            if (side == 'sell' and trigger_price >= last_price) or \
+               (side == 'buy' and trigger_price <= last_price):
+                # 已经过止损位，直接市价平仓
+                logger.warning(f"  止损价{trigger_price}已过市价{last_price}，直接市价平仓")
+                return self.create_market_close(coin, side, contracts)
+
         order = self.ex.create_order(
             sym, 'market', side, contracts, None,
             {'stopPrice': trigger_price, 'reduceOnly': True}
