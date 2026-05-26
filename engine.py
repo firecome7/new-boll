@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from config import (
     FIXED_POSITION_VALUE, LEVERAGE, MAX_POSITIONS,
     TP_PCT, SL_PCT, ORDER_LIFETIME_BARS, TIMEOUT_SECONDS,
-    TAKER_FEE, MAKER_FEE, DRY_RUN,
+    TAKER_FEE, MAKER_FEE, DRY_RUN, TRAINING_BARS,
 )
 from strategy import train_offsets, precalc_bb, predict_bands
 from gate_api import GateAPI
