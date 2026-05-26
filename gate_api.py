@@ -248,7 +248,8 @@ class GateAPI:
         def _sign(method, path, query=''):
             t = str(int(time.time()))
             hashed_body = hashlib.sha512(b'').hexdigest()
-            sign_str = f'{method}\\n/api/v4/{path}\\n{query}\\n{hashed_body}\\n{t}'
+            NL = '\n'
+            sign_str = f'{method}{NL}/api/v4/{path}{NL}{query}{NL}{hashed_body}{NL}{t}'
             h = hmac.new(api_secret.encode(), sign_str.encode(), hashlib.sha512).hexdigest()
             return {
                 'KEY': api_key, 'SIGN': h, 'Timestamp': t,
