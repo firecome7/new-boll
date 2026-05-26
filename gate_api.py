@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import ccxt
 import time
+import logging
 from typing import Optional
 from config import load_api_keys, LEVERAGE
+
+logger = logging.getLogger('gate_api')
 
 class GateAPI:
     """ccxt封装的Gate.io永续合约操作"""
@@ -185,19 +188,19 @@ class GateAPI:
 
     def create_stop_loss_close(self, coin: str, side: str, contracts: float,
                                 trigger_price: float) -> Optional[dict]:
-        """止损条件单（stop-limit）
-        价格到trigger_price才激活限价平仓单
-        避免直接限价单穿价成交（做空止损买价高于市价、做多止损卖价低于市价）
+        """止损条件单（stop-market）
+        价格到trigger_price立即市价平仓
         """
         sym = self.swap_symbol(coin)
         contracts = float(self.ex.amount_to_precision(sym, contracts))
         if contracts <= 0:
             return None
-        # 使用stopPrice创建条件单，价格触发后以同价限价平仓
         order = self.ex.create_order(
-            sym, 'limit', side, contracts, trigger_price,
+            sym, 'market', side, contracts, None,
             {'stopPrice': trigger_price, 'reduceOnly': True}
         )
+        if order.get('id'):
+            logger.info(f"  stop-market单: 触发价{trigger_price}")
         return order
 
     def create_market_close(self, coin: str, side: str, contracts: float) -> Optional[dict]:

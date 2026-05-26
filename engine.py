@@ -347,22 +347,24 @@ class TradingEngine:
     # ── 出场 ──
 
     def _check_exit(self, coin: str, price: float) -> list[dict]:
-        """检查是否触发出场条件"""
+        """检查是否触发止盈出场
+        止损由交易所条件单自动处理，不在此处检查
+        避免15秒轮询滑点
+        """
         cs = self.state[coin]
         if cs.pending_exit:
             return []
 
+        # 只检查止盈，止损交给交易所条件单
         if cs.position_side == 'long':
-            stop_hit = price <= cs.stop_price
             take_hit = price >= cs.take_price
         else:
-            stop_hit = price >= cs.stop_price
             take_hit = price <= cs.take_price
 
-        if not stop_hit and not take_hit:
+        if not take_hit:
             return []
 
-        result = 'take_profit' if take_hit else 'stop_loss'
+        result = 'take_profit'
         cs.exit_triggered_at = time.time()
         cs.exit_triggered_type = result
 
