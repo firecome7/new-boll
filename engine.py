@@ -145,6 +145,30 @@ class TradingEngine:
                 cs.position_side = p['side']
                 cs.position_size = p['size']
                 cs.entry_fill_price = p['entry_price']
+
+                # ── 校验：仓位不能过大 ──
+                current_notional = float(p.get('notional', 0))
+                if current_notional > FIXED_POSITION_VALUE * 1.5:
+                    current_size = cs.position_size
+                    target_size = int(current_size * (FIXED_POSITION_VALUE / current_notional))
+                    if target_size > 0 and current_size > target_size + 1:
+                        excess = current_size - target_size
+                        close_side = 'sell' if cs.position_side == 'long' else 'buy'
+                        logger.warning(
+                            f"  [{coin}] ⚠️ 仓位过大: 名义${current_notional:.0f} "
+                            f"(应为${FIXED_POSITION_VALUE:.0f}) "
+                            f"共{current_size}张 超量{excess}张"
+                        )
+                        try:
+                            self.api.create_market_close(coin, close_side, excess)
+                            cs.position_size = target_size
+                            logger.info(
+                                f"  [{coin}] ✅ 减仓成功: {current_size}→{target_size}张 "
+                                f"(${current_notional:.0f}→${FIXED_POSITION_VALUE:.0f})"
+                            )
+                        except Exception as e:
+                            logger.error(f"  [{coin}] ❌ 减仓失败: {e}")
+
                 if cs.position_side == 'long':
                     cs.stop_price = cs.entry_fill_price * (1 - SL_PCT)
                     cs.take_price = cs.entry_fill_price * (1 + TP_PCT)
