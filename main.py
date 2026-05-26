@@ -10,7 +10,7 @@ from datetime import datetime
 from config import (
     load_api_keys, TIMEFRAME, TIMEOUT_SECONDS, FIXED_POSITION_VALUE,
     MAX_POSITIONS, BAR_SECONDS, POLL_INTERVAL, ORDER_CHECK_INTERVAL,
-    SYNC_INTERVAL, DRY_RUN,
+    SYNC_INTERVAL, DRY_RUN, TP_PCT, SL_PCT,
 )
 from gate_api import GateAPI
 from engine import TradingEngine
@@ -101,7 +101,7 @@ class LiveTrader:
         logger.info("=" * 50)
         logger.info(f"New Boll 策略实盘 {'[验证模式]' if DRY_RUN else ''}")
         logger.info(f"  K线: {TIMEFRAME} | 每笔${FIXED_POSITION_VALUE} | 最多{MAX_POSITIONS}仓")
-        logger.info(f"  杠杆50x 全仓 | TP {2}% / SL {1}%")
+        logger.info(f"  杠杆50x 全仓 | TP {TP_PCT*100:.0f}% / SL {SL_PCT*100:.0f}%")
         logger.info(f"  行情: 每{POLL_INTERVAL}s | 订单: 每{ORDER_CHECK_INTERVAL}s | 同步: 每{SYNC_INTERVAL}s")
         logger.info("=" * 50)
 

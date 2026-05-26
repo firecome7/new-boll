@@ -134,7 +134,7 @@ class TradingEngine:
     # ── 同步 ──
 
     def _sync_positions(self):
-        """启动时从交易所同步已有持仓"""
+        """启动时从交易所同步已有持仓，并更新止盈止损单到最新config值"""
         positions = self.api.fetch_positions()
         logger.info(f"交易所持仓同步: 共{len(positions)}个活跃持仓")
         for p in positions:
@@ -152,8 +152,23 @@ class TradingEngine:
                     cs.stop_price = cs.entry_fill_price * (1 + SL_PCT)
                     cs.take_price = cs.entry_fill_price * (1 - TP_PCT)
                 self.active_coins.add(coin)
+
+                # 取消交易所旧止盈止损单，重下新单（确保配置变更生效）
+                old_orders = self.api.fetch_open_orders(coin)
+                for o in old_orders:
+                    if o.get('reduce_only', False):
+                        self.api.cancel_order(coin, o['id'])
+                close_side = 'sell' if cs.position_side == 'long' else 'buy'
+                tp_order = self.api.create_limit_close(coin, close_side, cs.position_size, cs.take_price)
+                if tp_order:
+                    cs.take_order_id = tp_order['id']
+                sl_order = self.api.create_stop_loss_close(coin, close_side, cs.position_size, cs.stop_price)
+                if sl_order:
+                    cs.stop_order_id = sl_order['id']
+
                 logger.info(f"  [{coin}] 恢复持仓 {cs.position_side} "
-                            f"入场${cs.entry_fill_price:.4f}")
+                            f"入场${cs.entry_fill_price:.4f} "
+                            f"止盈${cs.take_price:.4f} 止损${cs.stop_price:.4f}")
 
     def _sync_orders(self):
         """启动时从交易所同步未成交订单"""
