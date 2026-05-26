@@ -206,7 +206,7 @@ class TradingEngine:
             coin = o['coin']
             if coin in self.state:
                 cs = self.state[coin]
-                if not o['reduce_only']:
+                if not o['reduce_only'] and not cs.holding:
                     cs.entry_order_id = o['id']
                     cs.entry_price = o['price']
                     cs.entry_side = o['side']
@@ -452,6 +452,14 @@ class TradingEngine:
 
         # 入场成交
         pos_side = 'long' if side == 'buy' else 'short'
+        if cs.holding:
+            # 防御：已有持仓时收到入场成交 = bug，不覆盖position_size
+            logger.warning(
+                f"[{coin}] ⚠️ BUG: 入场成交时已有持仓! "
+                f"当前{cs.position_size}张 新{filled_amount}张 "
+                f"(交易所合计{cs.position_size + filled_amount}张) -> 跳过"
+            )
+            return
         cs.holding = True
         cs.position_side = pos_side
         cs.position_size = filled_amount
@@ -521,11 +529,25 @@ class TradingEngine:
 
     def sync_positions(self, exchange_positions: list[dict]):
         """从交易所持仓同步引擎状态"""
-        exchange_coins = {p['coin'] for p in exchange_positions}
+        exchange_map = {p['coin']: p for p in exchange_positions}
         for coin, cs in self.state.items():
-            if cs.holding and coin not in exchange_coins:
+            if cs.holding and coin not in exchange_map:
                 logger.info(f"[{coin}] 🔄 同步: 交易所已无持仓")
                 self.clear_position(coin, reason='sync_cleared')
+                continue
+            if cs.holding and coin in exchange_map:
+                ep = exchange_map[coin]
+                ex_size = float(ep.get('size', 0))
+                if ex_size != cs.position_size:
+                    diff_pct = abs(ex_size - cs.position_size) / max(cs.position_size, 1) * 100
+                    if diff_pct > 10:
+                        logger.warning(
+                            f"[{coin}] ⚠️ 仓位不同步: "
+                            f"引擎{cs.position_size}张 vs 交易所{ex_size}张 "
+                            f"(${float(ep.get('notional',0)):.0f}) → 已同步"
+                        )
+                        cs.position_size = ex_size
+                        cs.entry_fill_price = float(ep.get('entry_price', cs.entry_fill_price))
 
     @property
     def pending_entry(self) -> bool:
