@@ -46,8 +46,8 @@ def train_offsets(ohlcv: list[list]) -> dict:
     avg_low = float(np.mean(low_pens)) if low_pens else 0.0
 
     return {
-        'up_offset': 2.0 * avg_up,
-        'low_offset': 2.0 * avg_low,
+        'up_offset': 3.0 * avg_up,
+        'low_offset': 3.0 * avg_low,
         'up_samples': len(up_pens),
         'low_samples': len(low_pens),
     }

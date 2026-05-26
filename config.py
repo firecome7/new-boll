@@ -10,7 +10,7 @@ MAX_POSITIONS = 30                 # 最大同时持仓数
 MARGIN_MODE = 'cross'              # 全仓
 
 # ====== 策略参数 ======
-TP_PCT = 0.02                      # 止盈 2%
+TP_PCT = 0.03                      # 止盈 3%（最优: 3:1 R:R）
 SL_PCT = 0.01                      # 止损 1%
 BB_PERIOD = 25                     # 布林带周期
 BB_STD = 2                         # 布林带标准差倍数
