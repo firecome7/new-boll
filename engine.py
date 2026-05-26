@@ -141,6 +141,21 @@ class TradingEngine:
             coin = p['coin']
             if coin in self.state:
                 cs = self.state[coin]
+            else:
+                # 孤儿仓：该币不在引擎管理范围内，直接市价平仓
+                close_side = 'sell' if p['side'] == 'long' else 'buy'
+                sz = float(p.get('size', 0))
+                notional = float(p.get('notional', 0))
+                logger.warning(
+                    f"  [{coin}] ⚠️ 孤儿仓: {sz}张 ${notional:.0f} "
+                    f"不在币种列表中 → 市价平仓"
+                )
+                try:
+                    self.api.create_market_close(coin, close_side, sz)
+                    logger.info(f"  [{coin}] ✅ 孤儿仓平仓成功")
+                except Exception as e:
+                    logger.error(f"  [{coin}] ❌ 孤儿仓平仓失败: {e}")
+                continue
                 cs.holding = True
                 cs.position_side = p['side']
                 cs.position_size = p['size']
